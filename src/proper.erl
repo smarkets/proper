@@ -238,9 +238,14 @@
 %%% <dd>This is equivalent to the {@link numtests/1} property wrapper. Any
 %%%   {@link numtests/1} wrappers in the actual property will overwrite this
 %%%   setting.</dd>
+%%% <dt>`{seed, <Seed> | <Positive_number>}}'</dt>
+%%% <dd>Seed to get completely reproducible runs (rather than just
+%%% re-running a single test). Useful to repeat failures when individual
+%%% tests can be impure, so that rerunning a single test might not be enough.
+%%% An example would be using proper to drive for integration tests.
+%%% </dd>
 %%% <dt>`{start_size, <Size>}'</dt>
 %%% <dd>Specifies the initial value of the `size' parameter (default is 1), see
-%%%   the documentation of the {@link proper_types} module for details.</dd>
 %%% <dt>`{max_size, <Size>}'</dt>
 %%% <dd>Specifies the maximum value of the `size' parameter (default is 42), see
 %%%   the documentation of the {@link proper_types} module for details.</dd>
@@ -487,6 +492,7 @@
 		  | {'search_strategy', atom()}
 		  | pos_integer()
 		  | {'start_size',size()}
+		  | {'seed', seed() | pos_integer()}
 		  | {'max_size',size()}
 		  | {'max_shrinks',non_neg_integer()}
 		  | 'noshrink'
@@ -504,8 +510,8 @@
 	       numtests         = 100             :: pos_integer(),
 	       search_steps     = 1000            :: pos_integer(),
 	       search_strategy  = proper_sa       :: atom(),
+	       seed             = os:timestamp()  :: seed(), 
 	       start_size       = 1               :: size(),
-	       seed             = os:timestamp()  :: seed(),
 	       max_size         = 42              :: size(),
 	       max_shrinks      = 500             :: non_neg_integer(),
 	       noshrink         = false           :: boolean(),
@@ -886,6 +892,17 @@ multi_test_prep(Mod, Kind, UserOpts) ->
 %% Options parsing functions
 %%-----------------------------------------------------------------------------
 
+%% It's often more convenient to specify the seed for the whole run
+%% as a single number (e.g. on the commandline) than a tuple. This
+%% converts a positive number to a os:timestamp() style seed.
+-spec usec_to_seed(pos_integer()) -> seed().
+usec_to_seed(U) ->
+    {U div 1000000000000,
+     U rem 1000000000000
+       div 1000000,
+     U rem 1000000}.
+
+
 -spec add_user_opt(user_opt(), user_opts()) -> [user_opt(),...].
 add_user_opt(NewUserOpt, UserOptsList) when is_list(UserOptsList) ->
     [NewUserOpt | UserOptsList];
@@ -918,6 +935,9 @@ parse_opt(UserOpt, Opts) ->
 	{search_steps, N}    -> Opts#opts{search_steps = N};
 	{search_strategy, S} -> Opts#opts{search_strategy = S};
 	N when is_integer(N) -> Opts#opts{numtests = N};
+        {seed, {_,_,_} = S}  -> Opts#opts{seed = S};
+        {seed, U}  when is_integer(U), U >= 0
+                             -> Opts#opts{seed = usec_to_seed(U)};
 	{start_size,Size}    -> Opts#opts{start_size = Size};
 	{max_size,Size}      -> Opts#opts{max_size = Size};
 	{max_shrinks,N}      -> Opts#opts{max_shrinks = N};
